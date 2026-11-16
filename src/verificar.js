@@ -1,45 +1,41 @@
-const ventas = require("./datos.js");
-
+const ventas = require("./datos");
 const {
-    totalVendido,
-    totalVendidoM,
-    unidadesVendidas,
-    unidadesVendidasM,
-    ventasPorCiudad,
-    ventasPorCiudadM,
-    totalPorCiudad,
-    unidadesPorProducto,
-    topProductosPorValor
-} = require("./analitica.js");
+  totalVendido,
+  totalVendidoM,
+  unidadesVendidas,
+  unidadesVendidasM,
+  ventasPorCiudad,
+  ventasPorCiudadM,
+  totalPorCiudad,
+  unidadesPorProducto,
+  topProductosPorValor
+} = require("./analitica");
 
-function verificar(nombre, resultadoCiclo, resultadoMetodo) {
-    console.log(
-        nombre,
-        resultadoCiclo === resultadoMetodo ? "OK" : "DIFERENTE"
-    );
+function comparar(nombre, valorCiclo, valorMetodo) {
+  const estado = valorCiclo === valorMetodo ? "OK" : "DIFERENTE";
+  console.log(`${nombre}: ${estado} (Ciclo: ${valorCiclo} | Método: ${valorMetodo})`);
 }
 
-verificar(
-    "Total vendido:",
-    totalVendido(ventas),
-    totalVendidoM(ventas)
+console.log("=== VERIFICACIÓN DE PARIDAD (CICLOS VS. MÉTODOS) ===");
+comparar("Total vendido", totalVendido(ventas), totalVendidoM(ventas));
+comparar("Unidades vendidas", unidadesVendidas(ventas), unidadesVendidasM(ventas));
+comparar(
+  "Ventas Medellín",
+  ventasPorCiudad(ventas, "  MEDELLÍN "),
+  ventasPorCiudadM(ventas, "  MEDELLÍN ")
 );
-verificar(
-    "Unidades vendidas:",
-    unidadesVendidas(ventas),
-    unidadesVendidasM(ventas)
-);
-verificar(
-    "Ventas por Medellín:",
-    ventasPorCiudad(ventas, "Medellín"),
-    ventasPorCiudadM(ventas, "Medellín")
+comparar(
+  "Ventas Bogotá",
+  ventasPorCiudad(ventas, "Bogotá "),
+  ventasPorCiudadM(ventas, "Bogotá ")
 );
 
-console.log("\nTOTAL POR CIUDAD:");
-console.log(totalPorCiudad(ventas));
+console.log("\n=== VERIFICACIÓN CON ARREGLO VACÍO ===");
+comparar("Total vendido []", totalVendido([]), totalVendidoM([]));
+comparar("Unidades vendidas []", unidadesVendidas([]), unidadesVendidasM([]));
+comparar("Ventas Cali []", ventasPorCiudad([], "Cali"), ventasPorCiudadM([], "Cali"));
 
-console.log("\nUNIDADES POR PRODUCTO:");
-console.log(unidadesPorProducto(ventas));
-
-console.log("\nTOP 3 PRODUCTOS POR VALOR:");
-console.table(topProductosPorValor(ventas, 3));
+console.log("\n=== NUEVOS INDICADORES PARA LA GERENCIA ===");
+console.log("Total por ciudad:", totalPorCiudad(ventas));
+console.log("Unidades por producto:", unidadesPorProducto(ventas));
+console.log("Top 3 productos por dinero generado:", topProductosPorValor(ventas, 3));

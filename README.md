@@ -1,39 +1,14 @@
-# cafe-origen-analitica
-# Café Origen Analítica v0.1
+# Café Origen — Motor de Analítica de Ventas (`v1.0`)
 
-## Descripción
+Motor de inteligencia comercial desarrollado en **Node.js** para procesar, depurar y analizar historiales transaccionales de **Café Origen**, diseñado para integrarse con la plataforma del marketplace respondiendo reportes completos sobre **100.000 ventas en menos de 100 milisegundos**.
 
-Café Origen Analítica es un motor de análisis de ventas desarrollado
-con JavaScript y Node.js.
+---
 
-Su objetivo es procesar registros de ventas y generar indicadores
-que permitan comprender el comportamiento comercial del negocio.
+## Cómo ejecutarlo
 
-El sistema utiliza métodos de arreglos como map(), filter() y reduce(),
-objetos como diccionarios y ordenamiento con sort().
+No requiere dependencias externas ni instalación de paquetes (`npm install` no es necesario); funciona de forma nativa con **Node.js** ($\ge$ v16).
 
-## Requisitos
-
-- Node.js instalado.
-- Git para gestionar las versiones del proyecto.
-
-## Estructura del proyecto
-
-cafe-origen-analitica/
-├── src/
-│   ├── datos.js
-│   ├── analitica.js
-│   ├── explorar.js
-│   ├── pruebas.js
-│   ├── verificar.js
-│   ├── depuracion.js
-│   └── reporte.js
-├── bitacora.md
-└── README.md
-
-## Cómo ejecutar
-
-Desde la carpeta principal del proyecto:
-
-```bash
-node src/reporte.js
+### 1. Reporte ejecutivo completo (comando principal)
+* **Con los datos reales del Día 1 (12 transacciones):**
+  ```bash
+  node src/reporte.js

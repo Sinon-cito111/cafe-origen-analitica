@@ -1,105 +1,183 @@
-const ventas = require("./datos.js");
-
+const { performance } = require("perf_hooks");
+const ventasReales = require("./datos");
+const catalogo = require("./catalogo");
+const { generarVentas } = require("./generador");
 const {
-    totalVendido,
-    unidadesVendidas,
-    ventaMayor,
-    ticketPromedio,
-    totalPorCiudad,
-    unidadesPorProducto,
-    topProductosPorValor,
-    ventasDelDia
-} = require("./analitica.js");
+  valorVenta,
+  totalVendidoM,
+  unidadesVendidasM,
+  ventaMayor,
+  ticketPromedio,
+  totalPorCiudad,
+  totalCiudadUnaPasada,
+  unidadesPorProducto,
+  topProductosPorValor,
+  ventasDelDia,
+  clientesRecurrentesSet,
+  productoEstrellaPorCiudad,
+  comboRegalo,
+  primerClienteUnico,
+  mejorSemana
+} = require("./analitica");
 
-// Formato de pesos colombianos
-function pesos(valor) {
-    return "$ " + valor.toLocaleString("es-CO", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2
-    });
+const ventasDiariasSeptiembre = [
+  320, 410, 280, 390, 510, 620, 700, 300, 290, 450,
+  480, 530, 610, 680, 350, 330, 420, 470, 560, 640,
+  710, 380, 360, 440, 500, 590, 650, 720, 400, 370
+];
+
+function formatearCOP(valor) {
+  return `$${Math.round(valor).toLocaleString("es-CO")}`;
 }
 
-function titulo(texto) {
-    console.log("\n" + "=".repeat(55));
-    console.log(texto.toUpperCase());
-    console.log("=".repeat(55));
+function lineaSeparadora(caracter = "=", longitud = 68) {
+  return caracter.repeat(longitud);
 }
 
-// RESUMEN GENERAL
-titulo("1. Resumen general");
+function obtenerDataset(argN) {
+  if (!argN) {
+    return {
+      datos: ventasReales,
+      fuente: `Datos reales del Día 1 (${ventasReales.length} registros)`
+    };
+  }
 
-const mayor = ventaMayor(ventas);
+  const n = Number(argN);
+  if (!Number.isInteger(n) || n <= 0) {
+    console.error("Error: El parámetro n debe ser un entero positivo. Ej: node src/reporte.js 100000");
+    process.exit(1);
+  }
 
-console.log("Total vendido:".padEnd(30), pesos(totalVendido(ventas)));
-console.log("Unidades vendidas:".padEnd(30), unidadesVendidas(ventas));
-console.log("Ticket promedio:".padEnd(30), pesos(ticketPromedio(ventas)));
-
-console.log(
-    "Venta más grande:".padEnd(30),
-    mayor ? pesos(mayor.cantidad * mayor.precio) : pesos(0)
-);
-
-if (mayor) {
-    console.log("Producto:".padEnd(30), mayor.producto);
+  return {
+    datos: generarVentas(n),
+    fuente: `Historial sintético generado (${n.toLocaleString("es-CO")} registros)`
+  };
 }
 
-// VENTAS POR CIUDAD
-titulo("2. Ventas por ciudad");
+function generarReporte(datos, fuente) {
+  const inicioReporte = performance.now();
 
-const ciudades = totalPorCiudad(ventas);
+  console.log(lineaSeparadora("="));
+  console.log("          CAFÉ ORIGEN - REPORTE EJECUTIVO DE VENTAS (v1.0)");
+  console.log(`          Fuente: ${fuente}`);
+  console.log(lineaSeparadora("="));
 
-const nombresCiudad = {
-    "medellín": "Medellín",
-    "bogotá": "Bogotá",
-    "cali": "Cali",
-    "pereira": "Pereira"
-};
+  // 1. RESUMEN GENERAL
+  const total = totalVendidoM(datos);
+  const unidades = unidadesVendidasM(datos);
+  const ticket = ticketPromedio(datos);
+  const mayor = ventaMayor(datos);
 
-for (const [ciudad, total] of Object.entries(ciudades)) {
+  console.log("\n1. RESUMEN GENERAL");
+  console.log(lineaSeparadora("-"));
+  console.log(`${"Total vendido:".padEnd(32)} ${formatearCOP(total)}`);
+  console.log(`${"Unidades vendidas:".padEnd(32)} ${unidades.toLocaleString("es-CO")} uds.`);
+  console.log(`${"Ticket promedio:".padEnd(32)} ${formatearCOP(ticket)}`);
+  if (mayor) {
     console.log(
-        (nombresCiudad[ciudad] || ciudad).padEnd(30),
-        pesos(total)
+      `${"Venta más grande:".padEnd(32)} ${formatearCOP(valorVenta(mayor))} (${mayor.producto} - ${mayor.ciudad.trim()})`
     );
-}
+  }
 
-// UNIDADES POR PRODUCTO
-titulo("3. Unidades por producto");
+  // 2. VENTAS POR CIUDAD
+  console.log("\n2. VENTAS POR CIUDAD");
+  console.log(lineaSeparadora("-"));
+  const porCiudad = totalPorCiudad(datos);
+  for (const [ciudad, monto] of Object.entries(porCiudad)) {
+    console.log(`${ciudad.padEnd(32)} ${formatearCOP(monto).padStart(18)}`);
+  }
+  const verificacionMedellin = totalCiudadUnaPasada(datos, "Medellín");
+  console.log(`${"(Verificación O(1) esp. Medellín):".padEnd(32)} ${formatearCOP(verificacionMedellin).padStart(18)}`);
 
-const productos = unidadesPorProducto(ventas);
+  // 3. UNIDADES POR PRODUCTO
+  console.log("\n3. UNIDADES POR PRODUCTO");
+  console.log(lineaSeparadora("-"));
+  const porProducto = unidadesPorProducto(datos);
+  for (const [producto, cant] of Object.entries(porProducto)) {
+    const textoUds = `${cant.toLocaleString("es-CO")} uds.`;
+    console.log(`${producto.padEnd(32)} ${textoUds.padStart(18)}`);
+  }
 
-for (const [producto, unidades] of Object.entries(productos)) {
-    console.log(producto.padEnd(35), unidades);
-}
+  // 4. TOP 3 PRODUCTOS POR VALOR GENERADO
+  console.log("\n4. TOP 3 PRODUCTOS POR VALOR GENERADO");
+  console.log(lineaSeparadora("-"));
+  const top3 = topProductosPorValor(datos, 3);
+  top3.forEach((item, index) => {
+    const puesto = `#${index + 1} ${item.producto}`;
+    console.log(`${puesto.padEnd(32)} ${formatearCOP(item.total).padStart(18)}`);
+  });
 
-// TOP 3 POR VALOR
-titulo("4. Top 3 productos por valor");
+  // 5. CONSULTA DIARIA (DÍA CON VENTAS VS. DÍA SIN VENTAS)
+  console.log("\n5. RESUMEN POR FECHA ESPECÍFICA");
+  console.log(lineaSeparadora("-"));
+  const diaConVentas = ventasDelDia(datos, "2026-09-01");
+  const diaSinVentas = ventasDelDia(datos, "2026-09-31");
 
-const top3 = topProductosPorValor(ventas, 3);
-
-top3.forEach((producto, indice) => {
+  for (const resumen of [diaConVentas, diaSinVentas]) {
     console.log(
-        `${indice + 1}. ${producto.producto}`.padEnd(38),
-        pesos(producto.total)
+      `Fecha ${resumen.fecha} -> Transacciones: ${resumen.transacciones.toLocaleString("es-CO")} | ` +
+      `Unidades: ${resumen.unidades.toLocaleString("es-CO")} | ` +
+      `Total: ${formatearCOP(resumen.total)} | ` +
+      `Ticket prom.: ${formatearCOP(resumen.ticketPromedio)}`
     );
-});
+  }
 
-// RESUMEN DE DOS DÍAS
-titulo("5. Comparación de ventas por día");
+  // 6. CLIENTES RECURRENTES (O(n) CON SET)
+  console.log("\n6. CLIENTES RECURRENTES (> 1 COMPRA)");
+  console.log(lineaSeparadora("-"));
+  const recurrentes = clientesRecurrentesSet(datos);
+  const muestraRecurrentes = recurrentes.slice(0, 10).join(", ");
+  const sufijo = recurrentes.length > 10 ? ` ... (+${(recurrentes.length - 10).toLocaleString("es-CO")} más)` : "";
+  console.log(`${"Total clientes recurrentes:".padEnd(32)} ${recurrentes.length.toLocaleString("es-CO")} clientes`);
+  console.log(`${"Muestra:".padEnd(32)} ${recurrentes.length > 0 ? muestraRecurrentes + sufijo : "Ninguno"}`);
 
-const diaConVentas = ventasDelDia(ventas, "2026-09-01");
-const diaSinVentas = ventasDelDia(ventas, "2026-09-07");
+  // 7. PRODUCTO ESTRELLA POR CIUDAD
+  console.log("\n7. PRODUCTO ESTRELLA POR CIUDAD");
+  console.log(lineaSeparadora("-"));
+  const estrellas = productoEstrellaPorCiudad(datos);
+  for (const [ciudad, info] of Object.entries(estrellas)) {
+    console.log(
+      `${ciudad.padEnd(20)} ${info.producto.padEnd(26)} (${info.apariciones.toLocaleString("es-CO")} ventas)`
+    );
+  }
 
-function mostrarDia(dia) {
-    console.log("\nFecha:", dia.fecha);
-    console.log("Cantidad de ventas:".padEnd(30), dia.cantidadVentas);
-    console.log("Unidades:".padEnd(30), dia.unidades);
-    console.log("Total vendido:".padEnd(30), pesos(dia.totalVendido));
-    console.log("Ticket promedio:".padEnd(30), pesos(dia.ticketPromedio));
+  // 8. COMBO DE REGALO SUGERIDO (TARJETA $87.000)
+  console.log("\n8. COMBO DE REGALO SUGERIDO (TARJETA $87.000)");
+  console.log(lineaSeparadora("-"));
+  const combo = comboRegalo(catalogo, 87000);
+  if (combo) {
+    console.log(
+      `Sugerencia: ${combo[0].producto} (${formatearCOP(combo[0].precio)}) + ` +
+      `${combo[1].producto} (${formatearCOP(combo[1].precio)}) = ${formatearCOP(combo[0].precio + combo[1].precio)}`
+    );
+  } else {
+    console.log("Sugerencia: Sin combinación exacta disponible.");
+  }
+
+  // 9. CLIENTE PARA CUPÓN DE REGRESO (PRIMER CLIENTE ÚNICO)
+  console.log("\n9. FIDELIZACIÓN: PRIMER CLIENTE CON UNA SOLA COMPRA");
+  console.log(lineaSeparadora("-"));
+  const clienteCupon = primerClienteUnico(datos);
+  console.log(
+    `${"Cliente seleccionado para cupón:".padEnd(32)} ${clienteCupon || "Ninguno (todos son recurrentes)"}`
+  );
+
+  // 10. MEJOR SEMANA DE VENTAS (VENTANA DESLIZANTE k = 7 DÍAS)
+  console.log("\n10. MEJOR SEMANA DE SEPTIEMBRE (7 DÍAS CONSECUTIVOS)");
+  console.log(lineaSeparadora("-"));
+  const semanaTop = mejorSemana(ventasDiariasSeptiembre, 7);
+  if (semanaTop) {
+    console.log(
+      `Ventana óptima: Días ${semanaTop.diaInicio + 1} al ${semanaTop.diaInicio + 7} de septiembre ` +
+      `| Total acumulado: $${semanaTop.totalMaximo.toLocaleString("es-CO")} mil`
+    );
+  }
+
+  const tiempoTotalMs = performance.now() - inicioReporte;
+  console.log("\n" + lineaSeparadora("="));
+  console.log(`Tiempo total de análisis y generación del reporte: ${tiempoTotalMs.toFixed(2)} ms`);
+  console.log(lineaSeparadora("="));
 }
 
-mostrarDia(diaConVentas);
-mostrarDia(diaSinVentas);
-
-console.log("\n" + "=".repeat(55));
-console.log("FIN DEL REPORTE - CAFÉ ORIGEN ANALÍTICA v0.1");
-console.log("=".repeat(55));
+const { datos, fuente } = obtenerDataset(process.argv[2]);
+generarReporte(datos, fuente);

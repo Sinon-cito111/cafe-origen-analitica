@@ -291,6 +291,183 @@ function clientesRecurrentesDesdeMap(ventas) {
   return recurrentes;
 }
 
+function comboRegaloFuerzaBruta(catalogo, valor) {
+  for (let i = 0; i < catalogo.length; i++) {
+    for (let j = i + 1; j < catalogo.length; j++) {
+      if (
+        catalogo[i].producto !== catalogo[j].producto &&
+        catalogo[i].precio + catalogo[j].precio === valor
+      ) {
+        return [catalogo[i], catalogo[j]];
+      }
+    }
+  }
+  return null;
+}
+
+function comboRegalo(catalogo, valor) {
+  const preciosVistos = new Map();
+
+  for (const item of catalogo) {
+    const complemento = valor - item.precio;
+
+    if (preciosVistos.has(complemento)) {
+      const anterior = preciosVistos.get(complemento);
+      if (anterior.producto !== item.producto) {
+        return [anterior, item];
+      }
+    }
+
+    if (!preciosVistos.has(item.precio)) {
+      preciosVistos.set(item.precio, item);
+    }
+  }
+
+  return null;
+}
+
+function productoEstrellaPorCiudad(ventas) {
+  const porCiudad = new Map();
+
+  for (const venta of ventas) {
+    if (venta.cantidad <= 0) continue;
+
+    const ciudad = normalizarCiudad(venta.ciudad);
+    const producto = venta.producto.trim();
+
+    if (!porCiudad.has(ciudad)) {
+      porCiudad.set(ciudad, new Map());
+    }
+
+    const conteoProductos = porCiudad.get(ciudad);
+    conteoProductos.set(producto, (conteoProductos.get(producto) || 0) + 1);
+  }
+
+  const resultado = {};
+
+  for (const [ciudad, conteoProductos] of porCiudad.entries()) {
+    let estrella = null;
+    let maxApariciones = 0;
+
+    for (const [producto, apariciones] of conteoProductos.entries()) {
+      if (apariciones > maxApariciones) {
+        maxApariciones = apariciones;
+        estrella = producto;
+      }
+    }
+
+    resultado[ciudad] = {
+      producto: estrella,
+      apariciones: maxApariciones
+    };
+  }
+
+  return resultado;
+}
+
+function primerClienteUnico(ventas) {
+  const conteoClientes = new Map();
+
+  for (const venta of ventas) {
+    const actual = conteoClientes.get(venta.cliente) || 0;
+    conteoClientes.set(venta.cliente, actual + 1);
+  }
+
+  for (const venta of ventas) {
+    if (conteoClientes.get(venta.cliente) === 1) {
+      return venta.cliente;
+    }
+  }
+
+  return null;
+}
+
+// ==========================================
+// VENTANA DESLIZANTE Y DOS PUNTEROS
+// ==========================================
+
+function mejorSemanaBruta(dias, k) {
+  if (!Array.isArray(dias) || k <= 0 || dias.length < k) {
+    return null;
+  }
+
+  let maxTotal = -Infinity;
+  let diaInicio = 0;
+
+  for (let i = 0; i <= dias.length - k; i++) {
+    let suma = 0;
+    for (let j = 0; j < k; j++) {
+      suma += dias[i + j];
+    }
+    if (suma > maxTotal) {
+      maxTotal = suma;
+      diaInicio = i + 1; // Día 1-indexado (1..dias.length)
+    }
+  }
+
+  return {
+    total: maxTotal,
+    diaInicio
+  };
+}
+
+function mejorSemana(dias, k) {
+  if (!Array.isArray(dias) || k <= 0 || dias.length < k) {
+    return null;
+  }
+
+  let sumaVentana = 0;
+  for (let i = 0; i < k; i++) {
+    sumaVentana += dias[i];
+  }
+
+  let maxTotal = sumaVentana;
+  let diaInicio = 1;
+
+  for (let i = k; i < dias.length; i++) {
+    sumaVentana = sumaVentana + dias[i] - dias[i - k];
+    if (sumaVentana > maxTotal) {
+      maxTotal = sumaVentana;
+      diaInicio = i - k + 2; // Día 1-indexado donde inicia la ventana
+    }
+  }
+
+  return {
+    total: maxTotal,
+    diaInicio
+  };
+}
+
+function parMasCercano(precios, presupuesto) {
+  if (!Array.isArray(precios) || precios.length < 2 || presupuesto <= 0) {
+    return null;
+  }
+
+  // Copia ordenada de menor a mayor sin mutar el arreglo original
+  const ordenados = [...precios].sort((a, b) => a.precio - b.precio);
+
+  let izq = 0;
+  let der = ordenados.length - 1;
+  let mejorSuma = -1;
+  let mejorPar = null;
+
+  while (izq < der) {
+    const suma = ordenados[izq].precio + ordenados[der].precio;
+
+    if (suma <= presupuesto) {
+      if (suma > mejorSuma) {
+        mejorSuma = suma;
+        mejorPar = [ordenados[izq], ordenados[der]];
+      }
+      izq++;
+    } else {
+      der--;
+    }
+  }
+
+  return mejorPar;
+}
+
 module.exports = {
   valorVenta,
   totalVendido,
@@ -314,5 +491,12 @@ module.exports = {
   totalCiudadUnaPasada,
   clientesRecurrentesSet,
   comprasPorCliente,
-  clientesRecurrentesDesdeMap
+  clientesRecurrentesDesdeMap,
+  comboRegaloFuerzaBruta,
+  comboRegalo,
+  productoEstrellaPorCiudad,
+  primerClienteUnico,
+  mejorSemanaBruta,
+  mejorSemana,
+  parMasCercano
 };

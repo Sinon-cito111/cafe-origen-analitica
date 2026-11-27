@@ -317,3 +317,75 @@ git push origin main
 * Eliminar el doble ciclo y las búsquedas lineales `.includes()` recorriendo `ventas` **una sola vez** ($O(n)$ en tiempo) y usando estructuras con búsqueda/inserción en tiempo constante promedio $O(1)$:
   1. **Con `Set` (`clientesRecurrentesSet`):** Un `Set` `vistos` guarda los clientes ya encontrados al menos una vez; si al recorrer una venta el cliente ya está en `vistos`, se agrega a un segundo `Set` `recurrentes` (que evita duplicados automáticamente).
   2. **Con `Map` (`comprasPorCliente`):** Un `Map` lleva el conteo exacto de compras por `cliente` (`conteo.set(cliente, (conteo.get(cliente) || 0) + 1)`), y luego se filtran las entradas con cantidad `> 1`.
+  ### Medición de las tres versiones (`1.000`, `10.000` y `100.000` ventas)
+
+Resultados obtenidos ejecutando `node src/verificar_recurrentes.js`:
+
+* **Paridad verificada:** Con los 12 registros del Día 1 (`3` clientes recurrentes) y con `5.000` ventas generadas (`1.349` clientes recurrentes), las tres versiones coinciden al compararlas ordenadas.
+
+| `n (ventas)` | Original $O(n^2)$ | `clientesRecurrentesSet` $O(n)$ | `clientesRecurrentesDesdeMap` $O(n)$ |
+| :--- | :--- | :--- | :--- |
+| `1.000` | `4.144 ms` | `0.144 ms` | `0.056 ms` |
+| `10.000` | `494.94 ms` | `1.308 ms` | `1.183 ms` |
+| `100.000` | *Omitido (>10k)* | `14.788 ms` | `5.194 ms` |
+
+* Con `100.000` ventas, tanto la solución con `Set` (`14.788 ms` $\approx 0.015\text{ s}$) como la basada en `Map` (`5.194 ms` $\approx 0.005\text{ s}$) cumplen holgadamente el requisito del *marketplace* de responder en menos de un segundo.
+
+### Intercambio (trade-off) entre tiempo y memoria
+
+* **Lo que ganamos en tiempo:** Pasamos de complejidad cuadrática **$O(n^2)$** (con búsqueda lineal `.includes()` adicional) a complejidad lineal **$O(n)$** en una sola pasada sobre `ventas`. Al multiplicar `n` por 10 (de `10.000` a `100.000`), el tiempo crece de forma lineal (`1.308 ms` $\to$ `14.788 ms` en `Set`; `1.183 ms` $\to$ `5.194 ms` en `Map`), evitando el colapso cuadrático.
+* **Lo que invertimos en memoria:** A cambio de esa velocidad, asignamos estructuras auxiliares en memoria proporcionales a la cantidad de clientes distintos $c \le n$:
+  * `clientesRecurrentesSet` mantiene dos `Set` (`vistos` y `recurrentes`), con espacio auxiliar **$O(c)$** (en el peor caso $O(n)$ si casi todos los clientes son distintos).
+  * `comprasPorCliente` / `clientesRecurrentesDesdeMap` mantiene un `Map` con el conteo por cada cliente (`cliente -> cantidad`), con espacio auxiliar **$O(c)$** (en el peor caso $O(n)$).
+* **Conclusión del intercambio:** En un servidor con memoria limitada, gastar unos pocos megabytes de memoria $O(c)$ para evitar ciclos anidados $O(n^2)$ y lograr respuestas en ~`5–15 ms` para `100.000` ventas es un intercambio altamente favorable, siempre que el número de clientes distintos no sature la RAM disponible.
+---
+
+## Campaña de fin de año: Complementos (`Map`) y frecuencias (Día 4)
+
+### 1. Traza de `comboRegalo(catalogo, 87000)` con `Map` (Paso 4)
+
+* **Objetivo (`valor`):** `87.000`.
+* **Catálogo recorrido en orden:**
+  1. `Origen Nariño 250 g` (`26.000`)
+  2. `Origen Huila 500 g` (`42.000`)
+  3. `Origen Sierra 500 g` (`45.000`)
+  4. `Filtros de papel x100` (`18.000`)
+  5. `Taza de cerámica` (`35.000`)
+  6. `Origen Huila 1 kg` (`79.000`)
+  7. `Prensa francesa` (`95.000`)
+  8. `Molino manual` (`120.000`)
+
+| Paso | Producto actual (`item`) | `precio` | `complemento = 87.000 - precio` | ¿Está `complemento` en `preciosVistos`? | Acción en `preciosVistos` |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `1` | Origen Nariño 250 g | `26.000` | `61.000` | No | Guarda `26000 -> Origen Nariño 250 g` |
+| `2` | Origen Huila 500 g | `42.000` | `45.000` | No | Guarda `42000 -> Origen Huila 500 g` |
+| `3` | Origen Sierra 500 g | `45.000` | `42.000` | **Sí** (`Origen Huila 500 g`, distinto producto) | **Retorna `[Origen Huila 500 g (42.000), Origen Sierra 500 g (45.000)]`** |
+
+* **Otras pruebas realizadas:**
+  * `61.000`: encuentra `[Origen Nariño 250 g (26.000), Taza de cerámica (35.000)]` (`26.000 + 35.000 = 61.000`).
+  * `50.000` (sin combinación posible): recorre el catálogo y retorna `null`.
+
+---
+
+### 2. Clasificación de complejidad de las funciones de campaña (Pasos 2 y 7)
+
+*Sea $k$ el tamaño del catálogo (`comboRegaloFuerzaBruta` / `comboRegalo`) y $n$ el número de ventas (`productoEstrellaPorCiudad` / `primerClienteUnico`), con $c$ ciudades y $p$ productos distintos:*
+
+| Función | Complejidad temporal | Complejidad espacial (auxiliar) | Justificación |
+| :--- | :--- | :--- | :--- |
+| `comboRegaloFuerzaBruta(catalogo, valor)` | **$O(k^2)$** | **$O(1)$** | Dos ciclos anidados prueban $\frac{k(k-1)}{2}$ pares sin estructuras auxiliares grandes. |
+| `comboRegalo(catalogo, valor)` | **$O(k)$** | **$O(k)$** | Un solo recorrido sobre `catalogo` con consultas e inserciones en `Map` en tiempo constante promedio $O(1)$; guarda hasta $k$ precios en el `Map`. |
+| `productoEstrellaPorCiudad(ventas)` | **$O(n)$** | **$O(c \cdot p)$** *(en práctica acotada por catálogo)* | Un recorrido lineal sobre `ventas` actualiza un `Map` anidado por ciudad y producto en $O(1)$ promedio, y luego recorre las ciudades y productos acumulados para hallar el máximo de cada ciudad. |
+| `primerClienteUnico(ventas)` | **$O(n)$** | **$O(u)$** *(hasta $O(n)$ si todos los clientes son distintos)* | Realiza dos recorridos lineales secuenciales ($2n \implies O(n)$): el primero cuenta compras por cliente en un `Map` y el segundo devuelve el primer cliente con conteo igual a `1`. |
+
+### Resultados medidos (`node src/probar_ventana_punteros.js`)
+
+* **Septiembre (`k = 7`):** Tanto `mejorSemanaBruta` como `mejorSemana` coinciden (`{ total: 3670, diaInicio: 24 }`).
+* **Benchmark con `100.000` días aleatorios (`k = 7`):**
+  * `mejorSemanaBruta`: **`6.436 ms`** (`{ total: 4598, diaInicio: 17500 }`).
+  * `mejorSemana` (ventana deslizante): **`1.735 ms`** (`{ total: 4598, diaInicio: 17500 }`).
+  * Ambas devuelven exactamente el mismo resultado (`true`) y la ventana deslizante resulta más rápida al evitar sumar los $k$ elementos desde cero en cada desplazamiento.
+* **Par más cercano al presupuesto (`parMasCercano`):**
+  * Presupuesto `100.000`: `Filtros de papel x100` (`18.000`) + `Origen Huila 1 kg` (`79.000`) = `97.000`.
+  * Presupuesto `140.000`: `Origen Sierra 500 g` (`45.000`) + `Prensa francesa` (`95.000`) = `140.000`.
+  * Presupuesto `40.000`: `null` (sin combinación posible dentro del presupuesto).

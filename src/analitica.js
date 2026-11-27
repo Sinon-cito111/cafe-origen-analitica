@@ -151,6 +151,63 @@ function ventasDelDia(ventas, fecha) {
   };
 }
 
+function primeraVenta(ventas, contador = { ops: 0 }) {
+  contador.ops += 1;
+  return ventas.length > 0 ? ventas[0] : null;
+}
+
+function totalVendidoContado(ventas, contador) {
+  let total = 0;
+
+  for (const venta of ventas) {
+    contador.ops += 1;
+    contador.ops += 1;
+    if (venta.cantidad > 0) {
+      total += valorVenta(venta);
+    }
+  }
+
+  return total;
+}
+
+function ventaMayorContado(ventas, contador) {
+  let mayor = null;
+
+  for (const venta of ventas) {
+    contador.ops += 1;
+    contador.ops += 1;
+    if (venta.cantidad > 0) {
+      contador.ops += 1;
+      if (mayor === null) {
+        mayor = venta;
+      } else {
+        contador.ops += 1;
+        if (valorVenta(venta) > valorVenta(mayor)) {
+          mayor = venta;
+        }
+      }
+    }
+  }
+
+  return mayor;
+}
+
+function totalPorCiudadContado(ventas, contador) {
+  const acum = {};
+
+  for (const venta of ventas) {
+    contador.ops += 1;
+    contador.ops += 1;
+    if (venta.cantidad > 0) {
+      const ciudad = normalizarCiudad(venta.ciudad);
+      contador.ops += 1;
+      acum[ciudad] = (acum[ciudad] || 0) + valorVenta(venta);
+    }
+  }
+
+  return acum;
+}
+
 module.exports = {
   valorVenta,
   totalVendido,
@@ -164,5 +221,9 @@ module.exports = {
   totalPorCiudad,
   unidadesPorProducto,
   topProductosPorValor,
-  ventasDelDia
+  ventasDelDia,
+  primeraVenta,
+  totalVendidoContado,
+  ventaMayorContado,
+  totalPorCiudadContado
 };

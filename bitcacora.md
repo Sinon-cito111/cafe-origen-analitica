@@ -128,3 +128,30 @@
 * **Prueba realizada:** Se ejecutó `node src/probar_errores.js` y `node src/reporte.js` consultando `ventasDelDia(ventas, "2026-09-10")`, fecha inexistente en la muestra de 12 registros, contrastando el cálculo directo `0 / 0` frente a `ventasDelDia`.
 * **Causa:** División por cero no controlada cuando el conjunto filtrado no tiene registros con `cantidad > 0`.
 * **Corrección (y demostración en `v0.1`):** `ticketPromedio` incorpora la guarda explícita `if (ventasValidas === 0) return 0;`, y `ventasDelDia` delega el cálculo en ella. Tanto en `probar_errores.js` como en `reporte.js`, la salida para `2026-09-10` devuelve `Transacciones: 0 | Unidades: 0 | Total: $0 | Ticket prom.: $0`, confirmando que el error está erradicado[cite: 1].
+---
+
+## Análisis de complejidad algorítmica (Día 2 — Parte 1)
+
+### Predicciones antes de medir (si `n` se multiplica por 10)
+
+* **`primeraVenta(ventas)`:** Las operaciones **se mantienen constantes ($\times 1$)**, porque accede directamente al índice `0` sin recorrer el arreglo.
+* **`totalVendidoContado(ventas, contador)`:** Las operaciones **se multiplican por 10 ($\times 10$)**, porque recorre las $n$ ventas una sola vez realizando una cantidad fija de operaciones por elemento.
+* **`ventaMayorContado(ventas, contador)`:** Las operaciones **se multiplican por 10 ($\times 10$)**, porque recorre el arreglo en una única pasada con un número constante de comparaciones por elemento.
+* **`totalPorCiudadContado(ventas, contador)`:** Las operaciones **se multiplican por 10 ($\times 10$)**, porque visita cada registro una sola vez y actualiza el objeto acumulador por clave en tiempo constante promedio.
+### Resultados obtenidos y clasificación asintótica
+
+Al ejecutar `node src/medir.js`, las predicciones se confirmaron exactamente: cada vez que `n` se multiplicó por 10, `primeraVenta` permaneció constante en `1`, mientras que las otras tres funciones multiplicaron sus operaciones exactamente por 10. Ninguna presentó crecimiento cuadrático $O(n^2)$.
+
+| `n (registros)` | `primeraVenta O(1)` | `totalVendido` | `ventaMayor` | `totalPorCiudad` |
+| :--- | :--- | :--- | :--- | :--- |
+| `100` | `1` | `200` | `399` | `300` |
+| `1.000` | `1` | `2.000` | `3.999` | `3.000` |
+| `10.000` | `1` | `20.000` | `39.999` | `30.000` |
+| `100.000` | `1` | `200.000` | `399.999` | `300.000` |
+
+| Función | Complejidad | Justificación por código | Justificación por números |
+| :--- | :--- | :--- | :--- |
+| `primeraVenta` | **$O(1)$** (Constante) | No contiene ciclos; accede directamente a `ventas[0]` en un solo paso sin importar el tamaño del arreglo. | Para $n = 100$ hizo `1` operación y para $n = 100.000$ siguió haciendo `1` operación ($\times 1$). |
+| `totalVendidoContado` | **$O(n)$** (Lineal) | Tiene un único ciclo `for...of` que recorre los $n$ elementos una vez realizando 2 operaciones fijas por iteración (visita + comparación `cantidad > 0`). | Pasó de `200` ($n=100$) a `2.000` ($n=1.000$) y `200.000` ($n=100.000$): relación exacta $2n$. |
+| `ventaMayorContado` | **$O(n)$** (Lineal) | Tiene un único ciclo `for...of` sin ciclos anidados. En la primera venta válida hace 3 operaciones (`mayor === null`) y en las $n - 1$ restantes hace 4 operaciones (visita + 3 comparaciones). | Pasó de `399` ($n=100$) a `3.999` ($n=1.000$) y `399.999` ($n=100.000$): relación exacta $4n - 1$, creciendo proporcional a $n$. |
+| `totalPorCiudadContado` | **$O(n)$** (Lineal) | Recorre el arreglo en un solo ciclo `for...of`. Actualizar el objeto acumulador (`acum[ciudad]`) es acceso hash en tiempo constante $O(1)$, haciendo 3 operaciones fijas por elemento. | Pasó de `300` ($n=100$) a `3.000` ($n=1.000$) y `300.000` ($n=100.000$): relación exacta $3n$. |

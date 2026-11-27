@@ -116,3 +116,15 @@ Para comprobar que las funciones con ciclos `for...of` calculan exactamente lo e
 
 * **Resultado manual:** `356000`.
 * **Salida del programa (`node src/probar.js`):** `356000` (**coincidencia exacta**).
+---
+
+## Diseño funcional con métodos de arreglo
+
+| Función | ¿Qué recorro? | ¿Qué filtro? | ¿Qué transformo? | ¿Qué acumulo? | ¿Cómo agrupo? |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `totalVendidoM` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | Cada venta en su ingreso (`valorVenta(venta)`). | La suma numérica de los ingresos partiendo de `0`. | No aplica (devuelve un escalar). |
+| `unidadesVendidasM` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | Cada venta en su propiedad `venta.cantidad`. | La suma numérica de unidades partiendo de `0`. | No aplica (devuelve un escalar). |
+| `ventasPorCiudadM` | El arreglo `ventas`. | `venta.cantidad > 0` y coincidencia de `ciudad` normalizada (`.trim().toLowerCase()`). | Cada venta filtrada en `valorVenta(venta)`. | La suma numérica de ingresos de esa ciudad partiendo de `0`. | No aplica (filtra previamente a una sola ciudad). |
+| `totalPorCiudad` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | `venta.ciudad` a formato estándar (`"Medellín"`, `"Bogotá"`, etc.) y la venta a `valorVenta(venta)`. | Un objeto diccionario `{ [ciudad]: total }` partiendo de `{}`. | Usando la ciudad normalizada como llave dinámica del objeto acumulador. |
+| `unidadesPorProducto` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | `venta.producto` (con `.trim()`) y extraigo `venta.cantidad`. | Un objeto diccionario `{ [producto]: unidades }` partiendo de `{}`. | Usando el nombre del producto como llave dinámica del objeto acumulador. |
+| `topProductosPorValor` | Primero `ventas`; luego los pares `[producto, total]` del objeto agrupado. | Registros con `venta.cantidad > 0`. | El diccionario agrupado en un arreglo nuevo de objetos `{ producto, total }`, ordenado de mayor a menor y recortado a `k` elementos (`.slice(0, k)`). | Primero acumula ingresos por producto en `{}`; luego ordena sin mutar `ventas` original. | Agrupa ingresos por `venta.producto` en un objeto antes de convertirlo a arreglo para ordenar. |

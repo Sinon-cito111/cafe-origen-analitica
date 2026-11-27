@@ -2,10 +2,6 @@ function valorVenta(venta) {
   return venta.cantidad * venta.precio;
 }
 
-// ==========================================
-// VERSIONES CON CICLOS (Etapa 2)
-// ==========================================
-
 function totalVendido(ventas) {
   let total = 0;
 
@@ -76,10 +72,6 @@ function ventasPorCiudad(ventas, ciudad) {
   return totalCiudad;
 }
 
-// ==========================================
-// VERSIONES CON MÉTODOS DE ARREGLO (Etapa 3)
-// ==========================================
-
 function normalizarCiudad(ciudad) {
   const limpia = ciudad.trim().toLowerCase();
   return limpia.charAt(0).toUpperCase() + limpia.slice(1);
@@ -138,11 +130,25 @@ function topProductosPorValor(ventas, k) {
       return acum;
     }, {});
 
-  // Object.entries crea un arreglo nuevo, por lo que .sort() no muta el arreglo 'ventas' original
   return Object.entries(totalesPorProducto)
     .map(([producto, total]) => ({ producto, total }))
     .sort((a, b) => b.total - a.total)
     .slice(0, k);
+}
+
+function ventasDelDia(ventas, fecha) {
+  const fechaBuscada = fecha.trim();
+  const registrosDia = ventas.filter(
+    (venta) => venta.fecha.trim() === fechaBuscada && venta.cantidad > 0
+  );
+
+  return {
+    fecha: fechaBuscada,
+    transacciones: registrosDia.length,
+    unidades: unidadesVendidasM(registrosDia),
+    total: totalVendidoM(registrosDia),
+    ticketPromedio: ticketPromedio(registrosDia)
+  };
 }
 
 module.exports = {
@@ -157,5 +163,6 @@ module.exports = {
   ventasPorCiudadM,
   totalPorCiudad,
   unidadesPorProducto,
-  topProductosPorValor
+  topProductosPorValor,
+  ventasDelDia
 };

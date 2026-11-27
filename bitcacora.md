@@ -1,6 +1,6 @@
-# Bitácora de Análisis de Datos - Café Origen
+# Bitácora de Análisis de Datos - Café Origen (`v0.1`)
 
-## Diccionario de datos
+## 1. Diccionario de datos
 
 | Propiedad | Tipo de dato (JS) | Significado y descripción |
 | :--- | :--- | :--- |
@@ -11,75 +11,59 @@
 | `ciudad` | `string` | Ciudad desde donde se realizó o despachó el pedido. |
 | `cantidad` | `number` | Número de unidades adquiridas del producto en esa transacción. |
 | `precio` | `number` | Valor unitario del producto en pesos colombianos (COP), sin impuestos ni descuentos aplicados. |
+
 ---
 
-## Casos borde detectados
+## 2. Casos borde detectados en la muestra cruda
 
 1. **Inconsistencia de formato en la propiedad `ciudad` (Registro `id: 5`)**
    * **Problema:** En los registros `1`, `4` y `11` aparece `"Medellín"` con inicial mayúscula, mientras que en el registro `5` aparece `"medellín"` en minúscula. Si se agrupa por ciudad sin normalizar, JavaScript tratará ambas cadenas como ciudades distintas.
-   * **Decisión:** Normalizar los textos de la propiedad `ciudad` antes de realizar agrupaciones o conteos (por ejemplo, aplicando `.trim()` y estandarizando a formato Título o minúsculas comparables).
+   * **Decisión:** Normalizar los textos de la propiedad `ciudad` antes de realizar agrupaciones o conteos aplicando `.trim().toLowerCase()` y estandarizando a formato Título.
 
 2. **Venta con `cantidad` igual a cero (Registro `id: 8`)**
    * **Problema:** El registro `8` (`cliente: "C06"`, `producto: "Origen Huila 500 g"`) tiene `cantidad: 0` con un `precio: 42000`. Esto genera un ingreso de `$0` y puede distorsionar métricas como el ticket promedio por transacción o el conteo de ventas efectivas.
-   * **Decisión:** Excluir los registros con `cantidad <= 0` de los cálculos financieros y métricas de ventas efectivas, pero mantenerlos documentados como posibles registros anulados o errores de digitación en el sistema origen.
+   * **Decisión:** Excluir los registros con `cantidad <= 0` de los cálculos financieros y métricas de ventas efectivas, manteniéndolos en `datos.js` como registros anulados o errores del sistema origen.
 
 3. **Recurrencia de clientes con múltiples compras (Clientes `C01`, `C02` y `C03`)**
-   * **Problema:** Un mismo código de cliente aparece en múltiples registros (por ejemplo, `C01` en los registros `1`, `4` y `11`; `C02` en `2` y `7`; `C03` en `3` y `9`). Contar los registros totales creyendo que equivalen a clientes únicos sobreestimaría la base de compradores.
-   * **Decisión:** Diferenciar claramente entre **número de transacciones** (cantidad de registros) y **clientes únicos** (usando estructuras como `Set` sobre la propiedad `cliente`) al generar los indicadores en `analitica.js`[cite: 1].
-   ---
+   * **Problema:** Un mismo código de cliente aparece en múltiples registros (`C01` en `1`, `4` y `11`; `C02` en `2` y `7`; `C03` en `3` y `9`). Contar los registros totales creyendo que equivalen a clientes únicos sobreestimaría la base de compradores.
+   * **Decisión:** Diferenciar entre número de transacciones válidas y clientes únicos al calcular indicadores.
 
-## Plan en pseudocódigo (Indicadores con ciclos)
-
-### 1. `valorVenta(venta)`
-* **Entrada:** Un objeto `venta`.
-* **Proceso:** Retornar `venta.cantidad * venta.precio`.
-
-### 2. `totalVendido(ventas)`
-* **Inicio:** Acumulador `total = 0`.
-* **Recorrido:** Para cada `venta` en `ventas`:
-  * **Condición:** Si `venta.cantidad > 0` (ignoramos registros inválidos o en cero):
-    * **Acumulación:** `total = total + valorVenta(venta)`.
-* **Retorno:** `total`.
-
-### 3. `unidadesVendidas(ventas)`
-* **Inicio:** Acumulador `unidades = 0`.
-* **Recorrido:** Para cada `venta` en `ventas`:
-  * **Condición:** Si `venta.cantidad > 0`:
-    * **Acumulación:** `unidades = unidades + venta.cantidad`.
-* **Retorno:** `unidades`.
-
-### 4. `ventaMayor(ventas)`
-* **Inicio:** `mayor = null` (si el arreglo está vacío o no hay ventas válidas, no existe un registro ganador).
-* **Recorrido:** Para cada `venta` en `ventas`:
-  * **Condición:** Si `venta.cantidad > 0`:
-    * Si `mayor === null` O `valorVenta(venta) > valorVenta(mayor)`:
-      * **Actualización:** `mayor = venta`.
-* **Retorno:** `mayor`.
-
-### 5. `ticketPromedio(ventas)`
-* **Inicio:** Acumulador `total = 0` y contador `ventasValidas = 0`.
-* **Recorrido:** Para cada `venta` en `ventas`:
-  * **Condición:** Si `venta.cantidad > 0`:
-    * **Acumulación:** `total = total + valorVenta(venta)` y `ventasValidas = ventasValidas + 1`.
-* **Retorno:** Si `ventasValidas === 0`, retornar `0` (evita división por cero `NaN`). De lo contrario, retornar `total / ventasValidas`.
-
-### 6. `ventasPorCiudad(ventas, ciudad)`
-* **Inicio:** Acumulador `totalCiudad = 0` y texto normalizado `ciudadBuscada = ciudad.trim().toLowerCase()`.
-* **Recorrido:** Para cada `venta` en `ventas`:
-  * **Condición:** Si `venta.cantidad > 0` Y `venta.ciudad.trim().toLowerCase() === ciudadBuscada`:
-    * **Acumulación:** `totalCiudad = totalCiudad + valorVenta(venta)`.
-* **Retorno:** `totalCiudad`.
 ---
 
-## Verificación a mano: Tablas de traza (Paso 7)
+## 3. Plan en pseudocódigo (Indicadores con ciclos `for...of`)
 
-Para comprobar que las funciones con ciclos `for...of` calculan exactamente lo esperado, se realizaron trazas manuales paso a paso sobre los 12 registros de `src/datos.js` y se contrastaron con la salida real de `node src/probar.js`.
+* **`valorVenta(venta)`**
+  * **Operación:** Devuelve `venta.cantidad * venta.precio`.
+* **`totalVendido(ventas)`**
+  * **Inicio:** `total = 0`.
+  * **Recorrido y condición:** Recorrer cada `venta` en `ventas`; si `venta.cantidad > 0`, acumular `total += valorVenta(venta)`.
+  * **Retorno (incluye `[]`):** Devuelve `total` (`0` si está vacío).
+* **`unidadesVendidas(ventas)`**
+  * **Inicio:** `unidades = 0`.
+  * **Recorrido y condición:** Recorrer cada `venta` en `ventas`; si `venta.cantidad > 0`, acumular `unidades += venta.cantidad`.
+  * **Retorno (incluye `[]`):** Devuelve `unidades` (`0` si está vacío).
+* **`ventaMayor(ventas)`**
+  * **Inicio:** `mayor = null`.
+  * **Recorrido y condición:** Recorrer cada `venta` en `ventas`; si `venta.cantidad > 0` y (`mayor === null` o `valorVenta(venta) > valorVenta(mayor)`), actualizar `mayor = venta`.
+  * **Retorno (incluye `[]`):** Devuelve el objeto `mayor` (`null` si está vacío o sin ventas válidas).
+* **`ticketPromedio(ventas)`**
+  * **Inicio:** `total = 0`, `ventasValidas = 0`.
+  * **Recorrido y condición:** Recorrer cada `venta` en `ventas`; si `venta.cantidad > 0`, sumar `total += valorVenta(venta)` e incrementar `ventasValidas += 1`.
+  * **Retorno (incluye `[]`):** Si `ventasValidas === 0`, devolver `0` (evita `NaN`); de lo contrario devolver `total / ventasValidas`.
+* **`ventasPorCiudad(ventas, ciudad)`**
+  * **Inicio:** `totalCiudad = 0`, `ciudadBuscada = ciudad.trim().toLowerCase()`.
+  * **Recorrido y condición:** Recorrer cada `venta`; si `venta.cantidad > 0` y `venta.ciudad.trim().toLowerCase() === ciudadBuscada`, sumar `totalCiudad += valorVenta(venta)`.
+  * **Retorno (incluye `[]`):** Devuelve `totalCiudad` (`0` si no hay coincidencias).
 
-### 1. Traza manual de `totalVendido(ventas)` y `unidadesVendidas(ventas)`
+---
 
-* **Estado inicial:** `total = 0`, `unidades = 0`
+## 4. Verificación a mano: Tablas de traza
 
-| `id` | `producto` | `cantidad` | `precio` | ¿`cantidad > 0`? | `valorVenta` (`cant × precio`) | `total` acumulado | `unidades` acumuladas |
+### Traza 1: `totalVendido(ventas)`, `unidadesVendidas(ventas)` y `ticketPromedio(ventas)`
+
+* **Estado inicial:** `total = 0`, `unidades = 0`, `ventasValidas = 0`
+
+| `id` | `producto` | `cantidad` | `precio` | ¿`cantidad > 0`? | `valorVenta` | `total` acum. | `unidades` acum. |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | `1` | Origen Huila 500 g | `2` | `42.000` | Sí | `$84.000` | `$84.000` | `2` |
 | `2` | Origen Nariño 250 g | `1` | `26.000` | Sí | `$26.000` | `$110.000` | `3` |
@@ -94,31 +78,27 @@ Para comprobar que las funciones con ciclos `for...of` calculan exactamente lo e
 | `11` | Prensa francesa | `1` | `95.000` | Sí | `$95.000` | `$907.000` | `18` |
 | `12` | Origen Nariño 250 g | `3` | `26.000` | Sí | `$78.000` | **`$985.000`** | **`21`** |
 
-* **Resultado manual:** `total = 985000`, `unidades = 21`, `ventasValidas = 11` $\implies$ `ticketPromedio = 985000 / 11 = 89545.45454545454`.
-* **Salida del programa (`node src/probar.js`):** `985000`, `21` y `89545.45454545454` (**coincidencia exacta**).
+* **Comprobación:** `total = 985000`, `unidades = 21`, `ventasValidas = 11` $\implies$ `ticketPromedio = 985000 / 11 = 89545.45454545454`. Coincide exactamente con `node src/probar.js`.
 
----
+### Traza 2: `ventasPorCiudad(ventas, "  MEDELLÍN ")`
 
-### 2. Traza manual de `ventasPorCiudad(ventas, "  MEDELLÍN ")`
+* **Normalización inicial:** `ciudadBuscada = "medellín"`, `totalCiudad = 0`
 
-* **Normalización inicial:** `ciudadBuscada = "  MEDELLÍN ".trim().toLowerCase() = "medellín"`
-* **Estado inicial:** `totalCiudad = 0`
-
-| `id` | `ciudad` original | `ciudadVenta` normalizada | ¿`cantidad > 0` y coincide? | `valorVenta` | `totalCiudad` acumulado |
+| `id` | `ciudad` original | `ciudadVenta` normalizada | ¿`cantidad > 0` y coincide? | `valorVenta` | `totalCiudad` acum. |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `1` | `"Medellín"` | `"medellín"` | **Sí** | `$84.000` | `$84.000` |
 | `2..3` | `"Bogotá"`, `"Cali"` | `"bogotá"`, `"cali"` | No | — | `$84.000` |
 | `4` | `"Medellín"` | `"medellín"` | **Sí** | `$42.000` | `$126.000` |
-| `5` | `"medellín"` | `"medellín"` | **Sí** *(resuelve caso borde)* | `$135.000` | `$261.000` |
+| `5` | `"medellín"` | `"medellín"` | **Sí** *(caso borde)* | `$135.000` | `$261.000` |
 | `6..10` | Varias | Varias | No | — | `$261.000` |
 | `11` | `"Medellín"` | `"medellín"` | **Sí** | `$95.000` | **`$356.000`** |
 | `12` | `"Bogotá"` | `"bogotá"` | No | — | **`$356.000`** |
 
-* **Resultado manual:** `356000`.
-* **Salida del programa (`node src/probar.js`):** `356000` (**coincidencia exacta**).
+* **Comprobación:** Resultado manual `356000` coincide exactamente con `node src/probar.js`.
+
 ---
 
-## Diseño funcional con métodos de arreglo
+## 5. Diseño funcional con métodos de arreglo
 
 | Función | ¿Qué recorro? | ¿Qué filtro? | ¿Qué transformo? | ¿Qué acumulo? | ¿Cómo agrupo? |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -128,3 +108,23 @@ Para comprobar que las funciones con ciclos `for...of` calculan exactamente lo e
 | `totalPorCiudad` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | `venta.ciudad` a formato estándar (`"Medellín"`, `"Bogotá"`, etc.) y la venta a `valorVenta(venta)`. | Un objeto diccionario `{ [ciudad]: total }` partiendo de `{}`. | Usando la ciudad normalizada como llave dinámica del objeto acumulador. |
 | `unidadesPorProducto` | El arreglo `ventas`. | Registros con `venta.cantidad > 0`. | `venta.producto` (con `.trim()`) y extraigo `venta.cantidad`. | Un objeto diccionario `{ [producto]: unidades }` partiendo de `{}`. | Usando el nombre del producto como llave dinámica del objeto acumulador. |
 | `topProductosPorValor` | Primero `ventas`; luego los pares `[producto, total]` del objeto agrupado. | Registros con `venta.cantidad > 0`. | El diccionario agrupado en un arreglo nuevo de objetos `{ producto, total }`, ordenado de mayor a menor y recortado a `k` elementos (`.slice(0, k)`). | Primero acumula ingresos por producto en `{}`; luego ordena sin mutar `ventas` original. | Agrupa ingresos por `venta.producto` en un objeto antes de convertirlo a arreglo para ordenar. |
+
+---
+
+## 6. Registro de incidentes y pruebas de regresión (`v0.1`)
+
+### Incidente 1: Duplicación de ciudades en agrupaciones (`"Bogotá"` / `"Medellín"`)
+* **Síntoma:** Al generar el resumen por ciudad en una versión preliminar, la misma ciudad aparecía dividida en dos filas distintas (por ejemplo, `"Bogotá"` y `"Bogotá "`, o `"Medellín"` y `"medellín"`).
+* **Entrada que lo produce:** Registros con espacios al inicio/final o variaciones de mayúsculas/minúsculas en la propiedad `ciudad`, como `{ id: 5, ciudad: "medellín", ... }` frente a `{ id: 1, ciudad: "Medellín", ... }`, o un registro ingresado como `"Bogotá "`.
+* **Hipótesis:** El código preliminar utilizaba directamente `venta.ciudad` como clave del objeto acumulador sin limpiar espacios ni estandarizar mayúsculas, haciendo que JavaScript tratara `"Bogotá"` y `"Bogotá "` como llaves diferentes.
+* **Prueba realizada:** Se ejecutó `node src/probar_errores.js` agregando un registro con `ciudad: "Bogotá "` sobre los datos existentes (que ya incluyen `"Medellín"` y `"medellín"`), comparando una agrupación cruda frente a `totalPorCiudad(ventasSucias)`.
+* **Causa:** Ausencia de normalización de cadenas antes de agrupar los datos (`"Bogotá" !== "Bogotá "` y `"Medellín" !== "medellín"`).
+* **Corrección (y demostración en `v0.1`):** En nuestra versión `v0.1`, `totalPorCiudad` invoca `normalizarCiudad(venta.ciudad)`, la cual aplica `.trim().toLowerCase()` y capitaliza únicamente la primera letra (`limpia.charAt(0).toUpperCase() + limpia.slice(1)`). La prueba en `node src/probar_errores.js` demostró que `"Medellín"` consolida sus 4 ventas (`356000`) y `"Bogotá"` unifica tanto `"Bogotá"` como `"Bogotá "` en una única clave (`318000`).
+
+### Incidente 2: `ticketPromedio` devuelve `NaN` en días sin ventas
+* **Síntoma:** Al filtrar las ventas de una fecha en la que no hubo transacciones, el reporte mostraba `$NaN` en el indicador de ticket promedio.
+* **Entrada que lo produce:** Invocar `ventasDelDia(ventas, "2026-09-10")` (o `ticketPromedio([])`), donde el filtro de fecha produce un arreglo vacío `[]` (`0` transacciones válidas).
+* **Hipótesis:** La versión preliminar calculaba `total / ventas.length` directamente sin validar si el divisor era cero. En JavaScript, `0 / 0` evalúa a `NaN` (*Not a Number*).
+* **Prueba realizada:** Se ejecutó `node src/probar_errores.js` y `node src/reporte.js` consultando `ventasDelDia(ventas, "2026-09-10")`, fecha inexistente en la muestra de 12 registros, contrastando el cálculo directo `0 / 0` frente a `ventasDelDia`.
+* **Causa:** División por cero no controlada cuando el conjunto filtrado no tiene registros con `cantidad > 0`.
+* **Corrección (y demostración en `v0.1`):** `ticketPromedio` incorpora la guarda explícita `if (ventasValidas === 0) return 0;`, y `ventasDelDia` delega el cálculo en ella. Tanto en `probar_errores.js` como en `reporte.js`, la salida para `2026-09-10` devuelve `Transacciones: 0 | Unidades: 0 | Total: $0 | Ticket prom.: $0`, confirmando que el error está erradicado[cite: 1].

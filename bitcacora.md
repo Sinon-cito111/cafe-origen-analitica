@@ -289,3 +289,31 @@ git push origin main
 * **Compañero revisor:** `[Nombre del compañero]`
 * **Observación recibida:** `[Observación del compañero — por ejemplo, si pidió aclarar por qué totalCiudadCadena tarda más o cómo se calcula la proyección a 1.000.000 de ventas]`
 * **Respuesta y aclaración:** Se revisó el informe `RENDIMIENTO.md` contrastando los tiempos medidos en `src/benchmark_v02.js` (`10.000` ventas) con las reglas de Big-O y el escalamiento cuadrático $(100)^2 = 10.000\times$ para `clientesRecurrentes` (`400.129 ms` $\to$ ~`4.001,29 s` $\approx 66,7\text{ min}$), dejando explícita tanto la diferencia constante/espacial entre `totalCiudadCadena` y `totalCiudadUnaPasada` como la prioridad de optimizar primero `clientesRecurrentes`.
+---
+
+## Optimización de `clientesRecurrentes` a tiempo lineal $O(n)$ (Día 3)
+
+### 1. Entender el problema
+* **Entradas:** `ventas`, un arreglo de objetos de venta (cada uno con propiedades como `id`, `fecha`, `cliente`, `producto`, `ciudad`, `cantidad`, `precio`).
+* **Salida:** Un arreglo con los identificadores de `cliente` (ej. `["C01", "C02", "C03"]`) que aparecen **más de una vez** en `ventas`, sin duplicados dentro del resultado.
+* **Restricciones y consideraciones:**
+  * El reporte debe responder en **menos de 1 segundo** con `100.000` ventas.
+  * El orden de los clientes devueltos puede variar según la estrategia (al comparar ordenados, el conjunto de clientes recurrentes es el mismo).
+  * Si un cliente compra 3 o más veces, debe aparecer **una sola vez** en el resultado.
+
+### 2. Ejemplos y casos borde
+* **Muestra del Día 1 (12 ventas):** `C01` (3 compras), `C02` (2 compras) y `C03` (2 compras) compran más de una vez $\implies$ `["C01", "C02", "C03"]`.
+* **Arreglo vacío (`[]`):** No hay compras repetidas $\implies$ `[]`.
+* **Arreglo de 1 sola venta (`[v1]`):** Ningún cliente supera una compra $\implies$ `[]`.
+* **Todos los clientes compran exactamente 1 vez:** Ningún cliente es recurrente $\implies$ `[]`.
+* **Un mismo cliente compra 4 veces (`C01`, `C01`, `C01`, `C01`):** Debe aparecer una sola vez en el resultado (`["C01"]`), no repetido.
+
+### 3. Fuerza bruta y su complejidad
+* **Enfoque (`clientesRecurrentes`):** Doble ciclo `for` (`i` de `0` a `n-1`, `j` de `i+1` a `n-1`) comparando `ventas[i].cliente === ventas[j].cliente` y verificando `!recurrentes.includes(ventas[i].cliente)`.
+* **Complejidad temporal:** $\frac{n(n-1)}{2}$ comparaciones base $\implies O(n^2)$ en tiempo (y hasta $O(n^3)$ en el peor caso si `.includes()` recorre un arreglo `recurrentes` grande de tamaño $O(n)$). En `10.000` ventas ya toma ~`400 ms` y en `100.000` escala a decenas de segundos.
+* **Complejidad espacial auxiliar:** $O(n)$ por el arreglo `recurrentes` (en el peor caso hasta $\lfloor n/2 \rfloor$ clientes).
+
+### 4. Idea de optimización
+* Eliminar el doble ciclo y las búsquedas lineales `.includes()` recorriendo `ventas` **una sola vez** ($O(n)$ en tiempo) y usando estructuras con búsqueda/inserción en tiempo constante promedio $O(1)$:
+  1. **Con `Set` (`clientesRecurrentesSet`):** Un `Set` `vistos` guarda los clientes ya encontrados al menos una vez; si al recorrer una venta el cliente ya está en `vistos`, se agrega a un segundo `Set` `recurrentes` (que evita duplicados automáticamente).
+  2. **Con `Map` (`comprasPorCliente`):** Un `Map` lleva el conteo exacto de compras por `cliente` (`conteo.set(cliente, (conteo.get(cliente) || 0) + 1)`), y luego se filtran las entradas con cantidad `> 1`.

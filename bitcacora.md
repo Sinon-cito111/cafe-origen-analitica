@@ -155,3 +155,137 @@ Al ejecutar `node src/medir.js`, las predicciones se confirmaron exactamente: ca
 | `totalVendidoContado` | **$O(n)$** (Lineal) | Tiene un único ciclo `for...of` que recorre los $n$ elementos una vez realizando 2 operaciones fijas por iteración (visita + comparación `cantidad > 0`). | Pasó de `200` ($n=100$) a `2.000` ($n=1.000$) y `200.000` ($n=100.000$): relación exacta $2n$. |
 | `ventaMayorContado` | **$O(n)$** (Lineal) | Tiene un único ciclo `for...of` sin ciclos anidados. En la primera venta válida hace 3 operaciones (`mayor === null`) y en las $n - 1$ restantes hace 4 operaciones (visita + 3 comparaciones). | Pasó de `399` ($n=100$) a `3.999` ($n=1.000$) y `399.999` ($n=100.000$): relación exacta $4n - 1$, creciendo proporcional a $n$. |
 | `totalPorCiudadContado` | **$O(n)$** (Lineal) | Recorre el arreglo en un solo ciclo `for...of`. Actualizar el objeto acumulador (`acum[ciudad]`) es acceso hash en tiempo constante $O(1)$, haciendo 3 operaciones fijas por elemento. | Pasó de `300` ($n=100$) a `3.000` ($n=1.000$) y `300.000` ($n=100.000$): relación exacta $3n$. |
+---
+
+## Análisis de cuello de botella: `clientesRecurrentes` ($O(n^2)$)
+
+### 1. Verificación con los 12 datos del Día 1 (Paso 1)
+Al ejecutar `clientesRecurrentes(ventas)` con los 12 registros de `src/datos.js`, devuelve `[ 'C01', 'C02', 'C03' ]`, coincidiendo exactamente con los clientes que realizaron más de una compra.
+
+### 2. Traza manual con $n = 5$ ventas y generalización (Paso 2)
+Tomando las primeras 5 ventas (`[C01, C02, C03, C01, C04]`):
+
+| Iteración externa (`i`) | Cliente `ventas[i]` | Valores de `j` (`i + 1` hasta `4`) | Comparaciones (`ventas[i].cliente === ventas[j].cliente`) | ¿Se agrega a `recurrentes`? |
+| :--- | :--- | :--- | :--- | :--- |
+| `i = 0` | `C01` | `1, 2, 3, 4` | **4** comparaciones (`C02`, `C03`, `C01`, `C04`) | Sí, en `j = 3` (`['C01']`) |
+| `i = 1` | `C02` | `2, 3, 4` | **3** comparaciones (`C03`, `C01`, `C04`) | No |
+| `i = 2` | `C03` | `3, 4` | **2** comparaciones (`C01`, `C04`) | No |
+| `i = 3` | `C01` | `4` | **1** comparación (`C04`) | No |
+| `i = 4` | `C04` | *(ninguno)* | **0** comparaciones | No |
+
+* **Total para $n = 5$:** $4 + 3 + 2 + 1 + 0 = \mathbf{10}$ comparaciones.
+* **Generalización para $n$ ventas:** El ciclo interno ejecuta $(n - 1) + (n - 2) + \dots + 1 = \frac{n(n - 1)}{2} = \frac{n^2 - n}{2}$ comparaciones, cuyo término dominante es $\frac{1}{2}n^2$, lo que define una complejidad base de **$O(n^2)$**.
+
+---
+
+### 3. Medición empírica de tiempos y análisis (Pasos 3, 4 y 5)
+
+Resultados medidos en consola con `node src/benchmark_recurrentes.js`:
+
+| `n (ventas)` | Tiempo medido (`console.time`) | Factor al duplicar `n` | Comparaciones realizadas ($\frac{n(n-1)}{2}$) |
+| :--- | :--- | :--- | :--- |
+| `1.000` | `8.381 ms` | — | `499.500` |
+| `2.000` | `33.312 ms` | `3.89x` | `1.999.000` |
+| `4.000` | `59.403 ms` | `1.78x` *(optimización JIT de V8)* | `7.998.000` |
+| `8.000` | `257.492 ms` | `4.33x` | `31.996.000` |
+| `16.000` | `934.754 ms` | `3.63x` | `127.992.000` |
+
+* **¿Qué pasa cuando `n` se duplica? (Paso 4):** Al duplicar la cantidad de ventas ($\times 2$), el tiempo de ejecución se **multiplica aproximadamente por 4** (`3.89x`, `4.33x`, `3.63x`). Esto responde directamente a la ley cuadrática $O(n^2)$: $(2n)^2 = 4n^2$.
+* **Estimación para $100.000$ y $1.000.000$ de ventas (Paso 5):**
+  * **Para $100.000$ ventas** ($6,25\times$ más datos que $16.000 \implies 6,25^2 = 39,06\times$ más tiempo): tomando `934.90 ms` en $16.000$, se estima **`36.52 segundos`** (menor a 2 minutos).
+  * **Para $1.000.000$ de ventas** ($10\times$ más datos que $100.000 \implies 10^2 = 100\times$ más tiempo): se estima **`3.651,94 segundos` ($\approx 60,9\text{ minutos}$ / más de 1 hora)** con el proceso bloqueado.
+
+---
+
+### 4. Costo oculto: `recurrentes.includes(...)` (Paso 6)
+Dentro del doble ciclo `for`, cada vez que `ventas[i].cliente === ventas[j].cliente` es verdadero, se ejecuta `!recurrentes.includes(ventas[i].cliente)`:
+
+1. **¿Qué hace `.includes()`?** Recorre secuencialmente el arreglo `recurrentes` desde la posición `0` hasta encontrar el cliente o llegar al final: tiene complejidad **$O(m)$**, donde $m$ es la cantidad de clientes recurrentes acumulados.
+2. **Impacto en el peor caso:** Si hay muchos clientes distintos que compran repetidamente, el tamaño de `recurrentes` crece proporcionalmente a $n$ ($m \approx \frac{n}{2}$). Aunque el operador `&&` hace cortocircuito cuando los clientes no coinciden, en un historial con muchos clientes repetidos la búsqueda lineal interna $O(n)$ se ejecuta repetidamente dentro del doble ciclo $O(n^2)$, empujando el peor caso teórico hacia **$O(n^3)$**.
+
+---
+
+### 5. Conclusión para la gerente (Paso 7)
+
+> **¿Por qué el reporte de clientes recurrentes se vuelve tan lento con el historial anual?**
+>
+> El reporte funciona rápido con pocas ventas porque revisa el archivo comparando **cada factura contra todas las demás facturas**, una por una, como si tuvieras una lista impresa y por cada renglón volvieras a leer toda la lista hacia abajo para ver si el cliente se repite.
+>
+> Cuando hay 12 ventas, eso implica apenas unas pocas decenas de revisiones. Pero con un historial anual de cientos de miles de ventas, las revisiones crecen **multiplicadas por sí mismas**: si las ventas aumentan 10 veces, el trabajo del computador aumenta 100 veces; si aumentan 100 veces, el trabajo crece 10.000 veces (pasando de menos de un segundo a más de una hora con un millón de ventas). Además, cada vez que encuentra un cliente repetido, vuelve a leer desde el principio la lista de clientes ya anotados para no duplicarlo.
+>
+> No es falla del computador ni de los datos; es la forma en que está buscando. Podemos cambiar esa lógica para que el sistema lea el historial **una sola vez de principio a fin**, anotando cada cliente en una tabla rápida, lo que reducirá esos minutos de espera a menos de un segundo.
+---
+
+## Análisis de complejidad espacial y recorridos (Día 2 - Parte 3)
+
+### 1. Comparación: `totalCiudadCadena` vs. `totalCiudadUnaPasada` (Paso 4)
+
+Verificado con `node src/verificar_espacio.js` sobre `10.000` ventas aleatorias: ambas funciones devuelven exactamente el mismo monto.
+
+| Métrica | `totalCiudadCadena(ventas, ciudad)` | `totalCiudadUnaPasada(ventas, ciudad)` |
+| :--- | :--- | :--- |
+| **Recorridos realizados** | **4 recorridos** (`map` $\to$ `filter` $\to$ `map` $\to$ `reduce`). | **1 recorrido** único (`for...of`). |
+| **Arreglos nuevos creados** | **3 arreglos intermedios** (el 1.º de tamaño $n$ con objetos clonados; el 2.º y 3.º de tamaño $m \le n$). | **0 arreglos nuevos** (solo variables primitivas: `ciudadBuscada` y `total`). |
+| **Complejidad de Tiempo** | **$O(n)$** (Lineal: $n + n + m + m \le 4n$). | **$O(n)$** (Lineal: exactamente $n$ iteraciones). |
+| **Complejidad de Espacio (auxiliar)** | **$O(n)$** (Almacena hasta $3n$ elementos extra en memoria en el peor caso). | **$O(1)$** (Memoria adicional constante, independiente del tamaño de `ventas`). |
+
+---
+
+### 2. ¿Por qué ambas son $O(n)$ en tiempo si una recorre 4 veces? (Paso 5)
+
+En notación Big-O medimos **la tasa de crecimiento asintótica** cuando $n \to \infty$, no la cantidad exacta de instrucciones de CPU:
+
+1. **Pasos secuenciales (no anidados):** `totalCiudadCadena` ejecuta cuatro recorridos uno después del otro, realizando como máximo $n + n + n + n = 4n$ operaciones.
+2. **Regla de eliminación de constantes:** En Big-O se descartan los factores constantes que multiplican al término dominante: $O(4n) \equiv O(n)$. Tanto $4n$ como $1n$ crecen de manera lineal y proporcional a $n$ (si $n$ se multiplica por 10, ambas hacen $10\times$ más trabajo).
+3. **Diferencia real en servidor:** Aunque comparten clase temporal $O(n)$, `totalCiudadCadena` tiene una constante $4\times$ mayor y obliga al *Garbage Collector* de Node.js a reservar y limpiar tres arreglos temporales en memoria.
+
+---
+
+### 3. Clasificación de complejidad espacial del motor completo (Paso 6)
+
+*Medida sobre la **memoria auxiliar** asignada por cada función más allá del arreglo de entrada `ventas`:*
+
+| Función | Espacio auxiliar | Justificación |
+| :--- | :--- | :--- |
+| `valorVenta` | **$O(1)$** | Realiza una multiplicación y retorna un número. |
+| `primeraVenta` | **$O(1)$** | Retorna la referencia directa a `ventas[0]` sin copiar datos. |
+| `totalVendido` | **$O(1)$** | Solo usa la variable acumuladora `total`. |
+| `unidadesVendidas` | **$O(1)$** | Solo usa la variable acumuladora `unidades`. |
+| `ventaMayor` | **$O(1)$** | Solo guarda una referencia (`mayor`) al objeto ganador. |
+| `ticketPromedio` | **$O(1)$** | Solo usa dos variables escalares (`total` y `ventasValidas`). |
+| `ventasPorCiudad` | **$O(1)$** | Solo usa `totalCiudad` y la cadena `ciudadBuscada`. |
+| `totalCiudadUnaPasada` | **$O(1)$** | Solo usa acumuladores primitivos (`total`, `ciudadBuscada`). |
+| `totalCiudadCadena` | **$O(n)$** | Construye 3 arreglos intermedios en memoria proporcionales a $n$. |
+| `totalVendidoM` / `unidadesVendidasM` / `ventasPorCiudadM` | **$O(n)$** | El método `.filter()` inicial crea un arreglo nuevo de hasta $n$ elementos antes de reducir. |
+| `ventasDelDia` | **$O(n)$** | Crea el arreglo intermedio `registrosDia` con `.filter()`, que en el peor caso (todas las ventas en esa fecha) ocupa $O(n)$. |
+| `clientesRecurrentes` | **$O(n)$** | El arreglo `recurrentes` puede crecer hasta $\lfloor n/2 \rfloor$ clientes distintos (proporcional a $n$). |
+| `totalPorCiudad` | **$O(n)$** *(o $O(1)$ si ciudades fijas)* | `.filter()` crea primero un arreglo intermedio de hasta $n$ registros ($O(n)$). El objeto diccionario `{ [ciudad]: total }` ocupa $O(c)$ donde $c$ es el número de ciudades distintas ($O(1)$ con un catálogo fijo de ciudades, o hasta $O(n)$ si entraran ciudades distintas en cada registro). |
+| `unidadesPorProducto` | **$O(n)$** | `.filter()` crea un arreglo intermedio de hasta $n$ elementos ($O(n)$) y el diccionario ocupa $O(p)$ según productos distintos ($p \le n$). |
+| `topProductosPorValor` | **$O(n)$** | Crea el arreglo filtrado $O(n)$, el diccionario por producto $O(p)$ y luego `Object.entries().map()` genera otro arreglo de tamaño $p$ para ordenarlo con `.sort()` sin mutar `ventas`. |
+
+---
+
+### 4. Decisión técnica para el motor (Paso 7)
+
+* **Versión elegida para producción:** `totalCiudadUnaPasada` (que comparte la misma estrategia de recorrido único que `ventasPorCiudad`).
+* **Justificación (Legibilidad vs. Recursos):**
+  * Dado que el marketplace correrá en un **servidor con memoria limitada**, evitar la clonación de objetos (`{ ...venta }`) y los 3 arreglos temporales de `totalCiudadCadena` reduce la memoria auxiliar de **$O(n)$ a $O(1)$** y evita presión sobre el *Garbage Collector*.
+  * Un ciclo `for...of` con una condición clara delegando en `valorVenta(venta)` mantiene alta legibilidad y facilidad de mantenimiento sin comprometer los recursos del servidor.
+```[cite: 1]
+
+---
+
+### 5. Guardar y subir a GitHub (Paso 7)
+
+```bash
+git add .
+git commit -m "perf: compara encadenamiento vs una pasada, clasifica complejidad espacial O(1) y O(n)"
+git push origin main
+```[cite: 1]
+---
+
+## Revisión de pares del informe `RENDIMIENTO.md` (`v0.2`)
+
+* **Compañero revisor:** `[Nombre del compañero]`
+* **Observación recibida:** `[Observación del compañero — por ejemplo, si pidió aclarar por qué totalCiudadCadena tarda más o cómo se calcula la proyección a 1.000.000 de ventas]`
+* **Respuesta y aclaración:** Se revisó el informe `RENDIMIENTO.md` contrastando los tiempos medidos en `src/benchmark_v02.js` (`10.000` ventas) con las reglas de Big-O y el escalamiento cuadrático $(100)^2 = 10.000\times$ para `clientesRecurrentes` (`400.129 ms` $\to$ ~`4.001,29 s` $\approx 66,7\text{ min}$), dejando explícita tanto la diferencia constante/espacial entre `totalCiudadCadena` y `totalCiudadUnaPasada` como la prioridad de optimizar primero `clientesRecurrentes`.

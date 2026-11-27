@@ -389,3 +389,24 @@ Resultados obtenidos ejecutando `node src/verificar_recurrentes.js`:
   * Presupuesto `100.000`: `Filtros de papel x100` (`18.000`) + `Origen Huila 1 kg` (`79.000`) = `97.000`.
   * Presupuesto `140.000`: `Origen Sierra 500 g` (`45.000`) + `Prensa francesa` (`95.000`) = `140.000`.
   * Presupuesto `40.000`: `null` (sin combinación posible dentro del presupuesto).
+  ---
+
+## Cierre de semana y resumen de MiniRetos (`v1.0`)
+
+### Resumen por MiniReto de la semana
+
+1. **Base del motor y calidad de datos (`v0.1`):** Construcción de `src/datos.js` y `src/analitica.js` con ciclos `for...of` y métodos de arreglo (`.filter()`, `.map()`, `.reduce()`, `.sort()`), normalización de ciudades (`.trim().toLowerCase()` y formato título) para evitar duplicados (`"Medellín"` / `"medellín"`, `"Bogotá"` / `"Bogotá "`), exclusión de `cantidad <= 0` y protección de `ticketPromedio` ante división por cero (`0` en lugar de `NaN`), validado con `src/probar.js`, `src/verificar.js`, `src/probar_errores.js` y `src/reporte.js`.
+2. **Generador sintético y conteo de operaciones ($O(1)$ vs. $O(n)$):** Creación de `src/generador.js` (`generarVentas(n)`) y versiones instrumentadas (`primeraVenta`, `totalVendidoContado`, `ventaMayorContado`, `totalPorCiudadContado`) medidas en `src/medir.js` para `n = 100`, `1.000`, `10.000` y `100.000`, comprobando crecimiento constante ($\times 1$) en $O(1)$ y lineal ($\times 10$ al multiplicar `n` por 10) en $O(n)$.
+3. **Diagnóstico de cuello de botella ($O(n^2)$):** Análisis y benchmark (`src/benchmark_recurrentes.js`) de `clientesRecurrentes`, demostrando $\frac{n(n-1)}{2}$ comparaciones, el costo oculto de `.includes()` y el escalamiento cuadrático del tiempo al duplicar `n` (con proyección de más de una hora para `1.000.000` de ventas).
+4. **Complejidad espacial y recorridos (`v0.2` / `RENDIMIENTO.md`):** Comparación de `totalCiudadCadena` (4 recorridos, 3 arreglos intermedios, espacio $O(n)$) frente a `totalCiudadUnaPasada` (1 recorrido, espacio $O(1)$), reglas de simplificación asintótica eliminando constantes, clasificación espacial de todo el motor y publicación de `RENDIMIENTO.md`.
+5. **Optimización de clientes recurrentes con `Set` y `Map`:** Refactorización de $O(n^2)$ a $O(n)$ mediante `clientesRecurrentesSet` y `comprasPorCliente` / `clientesRecurrentesDesdeMap`, verificando paridad ordenada y tiempos en `100.000` ventas por debajo de 1 segundo.
+6. **Campaña de fin de año (complementos y frecuencias):** Implementación en `src/catalogo.js` y `src/analitica.js` de `comboRegaloFuerzaBruta` vs. `comboRegalo` con `Map` en $O(k)$ (probado con `87.000`, `61.000` y `50.000`), `productoEstrellaPorCiudad` con `Map` anidado en $O(n)$ y `primerClienteUnico` con dos pasadas y `Map` en $O(n)$.
+7. **Ventana deslizante y dos punteros:** Implementación de `mejorSemanaBruta` vs. `mejorSemana` con ventana deslizante en $O(n)$ y espacio $O(1)$ (comprobado en septiembre y `100.000` días aleatorios) y `parMasCercano` con ordenamiento $O(m \log m)$ y dos punteros en $O(m)$.
+8. **Entrega final (`v1.0`):** Integración en `src/reporte.js` con soporte para datos del Día 1 o `n` ventas generadas, actualización de `RENDIMIENTO.md` y `README.md`, y verificación de clonado y ejecución desde cero.
+
+### Estrategia de resolución en cada optimización
+
+* **Identificar trabajo repetido y estructuras adecuadas:** En `clientesRecurrentes` y `comboRegalo`, se reemplazaron búsquedas repetidas o anidadas por consultas/inserciones en tiempo constante promedio $O(1)$ mediante `Set` o `Map` (intercambiando memoria auxiliar $O(u)$ / $O(k)$ por velocidad lineal).
+* **Reutilizar cómputo acumulado en lugar de recalcular:** En `mejorSemana`, se pasó de sumar $k$ días desde cero en cada ventana ($O(n \cdot k)$) a mantener la suma de la ventana sumando el elemento que entra y restando el que sale en $O(1)$ por paso ($O(n)$ total).
+* **Reducir pasadas y arreglos intermedios cuando importa la memoria:** En `totalCiudadUnaPasada`, se consolidó filtro, cálculo y suma en un solo recorrido con espacio $O(1)$ en lugar de encadenar múltiples arreglos intermedios.
+* **Medir antes y después:** Cada cambio se validó con pruebas de paridad y mediciones en consola antes de documentar o dar por cerrada la versión.
